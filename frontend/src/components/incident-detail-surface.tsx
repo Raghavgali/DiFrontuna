@@ -24,7 +24,7 @@ import {
   timeAgo,
 } from "@/lib/triage";
 import { BostonMap } from "@/components/boston-map";
-import { supabase } from "@/integrations/supabase/client";
+import { patchTicket } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -88,9 +88,8 @@ export function IncidentDetailSurface({
       return;
     }
 
-    const { error } = await supabase
-      .from("tickets")
-      .update({
+    try {
+      await patchTicket(form.id, {
         caller_name: form.caller_name,
         caller_phone: form.caller_phone,
         location: form.location,
@@ -101,17 +100,17 @@ export function IncidentDetailSurface({
         status: form.status,
         description: form.description,
         summary: form.summary,
-      })
-      .eq("id", form.id);
-
-    setSaving(false);
-    if (error) {
-      toast.error(`Save failed: ${error.message}`);
-      return;
+      });
+      toast.success("Ticket updated");
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error(
+        `Save failed: ${err instanceof Error ? err.message : "unknown error"}`,
+      );
+    } finally {
+      setSaving(false);
     }
-    toast.success("Ticket updated");
-    onSaved();
-    onClose();
   };
 
   const lang = LANGUAGE_META[form.language];

@@ -4,8 +4,6 @@ import { OperatorSidebar } from "@/components/operator-sidebar";
 import { StatsStrip } from "@/components/stats-strip";
 import { TicketsTable } from "@/components/tickets-table";
 import { TicketDetailDialog } from "@/components/ticket-detail-dialog";
-import { SimulateCallDialog } from "@/components/simulate-call-dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -17,7 +15,7 @@ import {
 import { MOCK_OPERATOR } from "@/lib/operator";
 import type { Severity, Status, Ticket } from "@/lib/triage";
 import { useTickets } from "@/hooks/use-tickets";
-import { Phone, Search, Sparkles } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   PageTopBar,
@@ -26,13 +24,12 @@ import {
 } from "@/components/page-top-bar";
 
 export default function App() {
-  const { tickets, insert, update } = useTickets();
+  const { tickets, update } = useTickets();
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [simOpen, setSimOpen] = useState(false);
 
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
@@ -72,14 +69,6 @@ export default function App() {
               <span className="size-1.5 animate-pulse rounded-full bg-success" />
               Live
             </span>
-            <Button
-              onClick={() => setSimOpen(true)}
-              className="rounded-full gradient-primary px-4 font-semibold text-primary-foreground shadow-glow hover:opacity-90"
-            >
-              <Phone className="h-4 w-4" />
-              <span className="hidden sm:inline">Simulate call</span>
-              <span className="sm:hidden">Simulate</span>
-            </Button>
           </div>
         </PageTopBar>
 
@@ -166,8 +155,6 @@ export default function App() {
         onSaved={() => {}}
         onLocalSave={(t) => update(t.id, t)}
       />
-      <SimulateCallDialog open={simOpen} onOpenChange={setSimOpen} onTicketCreated={insert} />
-
       <Toaster richColors position="top-right" />
     </div>
   );

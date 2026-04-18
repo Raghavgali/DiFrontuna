@@ -4,17 +4,9 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.events import publish
-from app.models.schemas import (
-    Call,
-    RouteTarget,
-    RoutingDecision,
-    TranscriptTurn,
-    TriageResult,
-    Urgency,
-)
-from app.services.extractor import normalize_incident
-from app.services.router import decide_route
+from app.models.schemas import Severity, Status, Ticket, TranscriptTurn
+from app.services.extractor import coerce_language, extract_incident_fields
+from app.services.router import EMERGENCY_ROUTING, decide_route
 from app.storage.db import SessionLocal
 from app.storage.models import TriageEventRow
 from app.storage.store import store
@@ -51,23 +43,23 @@ def _caller_number(call: VapiCall | None) -> str | None:
     return call.customer.number if call and call.customer else None
 
 
-def _ensure_call(call_id: str, caller_number: str | None = None) -> Call:
-    existing = store.get_call(call_id)
+def _ensure_ticket(call_id: str, caller_phone: str | None = None) -> Ticket:
+    existing = store.get(call_id)
     if existing:
-        if caller_number and not existing.caller_number:
-            existing.caller_number = caller_number
+        if caller_phone and not existing.caller_phone:
+            existing.caller_phone = caller_phone
             store.upsert(existing)
         return existing
-    call = Call(
+    ticket = Ticket(
         id=call_id,
-        started_at=datetime.now(timezone.utc),
-        caller_number=caller_number,
+        created_at=datetime.now(timezone.utc),
+        caller_phone=caller_phone,
     )
-    store.upsert(call)
-    return call
+    store.upsert(ticket)
+    return ticket
 
 
-def _tool_call_context(payload: VapiToolRequest) -> tuple[str, dict[str, Any], Call]:
+def _tool_context(payload: VapiToolRequest) -> tuple[str, dict[str, Any], Ticket]:
     msg = payload.message
     if not msg.toolCallList:
         raise HTTPException(status_code=400, detail="no tool calls in payload")
@@ -75,8 +67,8 @@ def _tool_call_context(payload: VapiToolRequest) -> tuple[str, dict[str, Any], C
         raise HTTPException(status_code=400, detail="missing call context")
     tool_call = msg.toolCallList[0]
     args = _parse_args(tool_call.function.arguments)
-    call = _ensure_call(msg.call.id, caller_number=_caller_number(msg.call))
-    return tool_call.id, args, call
+    ticket = _ensure_ticket(msg.call.id, caller_phone=_caller_number(msg.call))
+    return tool_call.id, args, ticket
 
 
 # ---------- Server events ----------
@@ -87,41 +79,30 @@ async def vapi_events(payload: VapiEventRequest) -> dict[str, bool]:
     if not msg.call:
         return {"ok": True}
 
-    call = _ensure_call(msg.call.id, caller_number=_caller_number(msg.call))
+    ticket = _ensure_ticket(msg.call.id, caller_phone=_caller_number(msg.call))
     extras = msg.model_dump()
 
     if msg.type == "transcript":
         role = extras.get("role", "unknown")
         text = (extras.get("transcript") or "").strip()
-        t_type = extras.get("transcriptType")
-        if t_type == "final" and text:
+        if extras.get("transcriptType") == "final" and text:
             turn = TranscriptTurn(
                 speaker="caller" if role == "user" else "agent",
                 text=text,
                 at=datetime.now(timezone.utc),
             )
-            call.transcript.append(turn)
-            store.upsert(call)
-            await publish(
-                "transcript.turn",
-                {"call_id": call.id, "turn": turn.model_dump(mode="json")},
-            )
+            store.append_transcript_turn(ticket.id, turn)
 
     elif msg.type == "status-update":
-        status_val = extras.get("status")
-        await publish(
-            "call.status",
-            {"call_id": call.id, "status": status_val},
-        )
-        if status_val == "ended":
-            call.ended_at = datetime.now(timezone.utc)
-            store.upsert(call)
-            await publish("call.ended", {"call_id": call.id})
+        if extras.get("status") == "ended":
+            ticket.ended_at = datetime.now(timezone.utc)
+            store.upsert(ticket)
 
     elif msg.type == "end-of-call-report":
-        call.ended_at = datetime.now(timezone.utc)
-        store.upsert(call)
-        await publish("call.ended", {"call_id": call.id})
+        ticket.ended_at = datetime.now(timezone.utc)
+        if ticket.status == Status.new:
+            ticket.status = Status.in_progress
+        store.upsert(ticket)
 
     return {"ok": True}
 
@@ -130,37 +111,33 @@ async def vapi_events(payload: VapiEventRequest) -> dict[str, bool]:
 
 @router.post("/tools/submit_incident", response_model=VapiToolResponse)
 async def tool_submit_incident(payload: VapiToolRequest) -> VapiToolResponse:
-    tool_id, args, call = _tool_call_context(payload)
+    tool_id, args, ticket = _tool_context(payload)
 
-    incident = normalize_incident(args)
-    triage = TriageResult(
-        category=incident.urgency,
-        confidence=float(args.get("confidence", 0.9)),
-        high_risk_signals=list(args.get("high_risk_signals") or []),
-    )
+    fields = extract_incident_fields(args)
+    ticket.category = fields["category"]
+    ticket.severity = fields["severity"]
+    ticket.language = fields["language"]
+    ticket.summary = fields["summary"]
+    if fields.get("location"):
+        ticket.location = fields["location"]
+    if fields.get("caller_name"):
+        ticket.caller_name = fields["caller_name"]
 
-    call.incident = incident
-    call.triage = triage
-    call.detected_language = incident.detected_language
-    store.upsert(call)
+    routing_label, assigned_to = decide_route(ticket.severity, ticket.category)
+    ticket.routing = routing_label
+    ticket.assigned_to = assigned_to
 
-    await publish(
-        "incident.updated",
-        {"call_id": call.id, "incident": incident.model_dump()},
-    )
-    await publish(
-        "triage.updated",
-        {"call_id": call.id, "triage": triage.model_dump()},
-    )
+    store.upsert(ticket)
+    store.set_triage_confidence(ticket.id, float(args.get("confidence", 0.9)))
+    signals = list(args.get("high_risk_signals") or [])
+    if signals:
+        store.set_high_risk_signals(ticket.id, signals)
 
     return VapiToolResponse(
         results=[
             VapiToolResult(
                 toolCallId=tool_id,
-                result=(
-                    f"Incident recorded as {incident.urgency.value}. "
-                    f"Summary: {incident.summary}"
-                ),
+                result=f"Incident recorded: {ticket.category} ({ticket.severity.value}). {ticket.summary}",
             )
         ]
     )
@@ -168,54 +145,49 @@ async def tool_submit_incident(payload: VapiToolRequest) -> VapiToolResponse:
 
 @router.post("/tools/escalate_emergency", response_model=VapiToolResponse)
 async def tool_escalate_emergency(payload: VapiToolRequest) -> VapiToolResponse:
-    tool_id, args, call = _tool_call_context(payload)
+    tool_id, args, ticket = _tool_context(payload)
 
     signal = str(args.get("signal", "unspecified"))
     reason = str(args.get("reason", "")).strip()
 
-    existing_signals = list(call.triage.high_risk_signals) if call.triage else []
-    if signal and signal not in existing_signals:
-        existing_signals.append(signal)
+    ticket.severity = Severity.emergency
+    if args.get("category"):
+        ticket.category = str(args["category"])
+    if args.get("language"):
+        ticket.language = coerce_language(args["language"])
+    routing_label, assigned_to = decide_route(ticket.severity, ticket.category)
+    if routing_label == "311 — Triage Queue":
+        routing_label, assigned_to = EMERGENCY_ROUTING
+    ticket.routing = routing_label
+    ticket.assigned_to = assigned_to
+    store.upsert(ticket)
 
-    call.triage = TriageResult(
-        category=Urgency.emergency,
-        confidence=1.0,
-        high_risk_signals=existing_signals,
-    )
-    if call.incident:
-        call.incident.urgency = Urgency.emergency
-    call.routing = RoutingDecision(
-        target=RouteTarget.emergency_operator,
-        reason=reason or f"High-risk signal: {signal}",
-    )
-    store.upsert(call)
+    from app.storage.models import TicketRow
 
     with SessionLocal() as db:
+        row = db.get(TicketRow, ticket.id)
+        existing_signals = list(row.high_risk_signals or []) if row else []
+        if signal and signal not in existing_signals:
+            existing_signals.append(signal)
+        if row:
+            row.high_risk_signals = existing_signals
         db.add(
             TriageEventRow(
-                call_id=call.id,
+                ticket_id=ticket.id,
                 signal=signal,
                 at=datetime.now(timezone.utc),
             )
         )
         db.commit()
 
-    await publish(
-        "triage.updated",
-        {"call_id": call.id, "triage": call.triage.model_dump()},
-    )
-    await publish(
-        "routing.decided",
-        {"call_id": call.id, "routing": call.routing.model_dump()},
-    )
-
     return VapiToolResponse(
         results=[
             VapiToolResult(
                 toolCallId=tool_id,
                 result=(
-                    "Emergency flagged. Transfer the caller to the emergency "
-                    "operator immediately using the transferCall tool."
+                    f"Emergency flagged ({signal}). "
+                    f"{reason or 'High-risk signal detected.'} "
+                    "Transfer the caller to 911 dispatch using the transferCall tool."
                 ),
             )
         ]
@@ -224,43 +196,33 @@ async def tool_escalate_emergency(payload: VapiToolRequest) -> VapiToolResponse:
 
 @router.post("/tools/route_non_emergency", response_model=VapiToolResponse)
 async def tool_route_non_emergency(payload: VapiToolRequest) -> VapiToolResponse:
-    tool_id, _args, call = _tool_call_context(payload)
+    tool_id, args, ticket = _tool_context(payload)
 
-    if not call.incident:
+    if args.get("category"):
+        ticket.category = str(args["category"])
+
+    if not ticket.category or ticket.category == "other":
         return VapiToolResponse(
             results=[
                 VapiToolResult(
                     toolCallId=tool_id,
-                    result=(
-                        "Cannot route: incident has not been submitted yet. "
-                        "Call submit_incident first."
-                    ),
+                    result="Cannot route yet — call submit_incident first so the category is known.",
                 )
             ]
         )
 
-    triage = call.triage or TriageResult(
-        category=call.incident.urgency,
-        confidence=0.8,
-        high_risk_signals=[],
-    )
-    routing = decide_route(triage, call.incident)
-    call.routing = routing
-    store.upsert(call)
+    routing_label, assigned_to = decide_route(ticket.severity, ticket.category)
+    ticket.routing = routing_label
+    ticket.assigned_to = assigned_to
+    store.upsert(ticket)
 
-    await publish(
-        "routing.decided",
-        {"call_id": call.id, "routing": routing.model_dump()},
-    )
-
-    dept = f" (Department: {routing.department})" if routing.department else ""
     return VapiToolResponse(
         results=[
             VapiToolResult(
                 toolCallId=tool_id,
                 result=(
-                    f"Route to {routing.target.value}{dept}. "
-                    f"Reason: {routing.reason}"
+                    f"Routed to {routing_label}. Team on point: {assigned_to}. "
+                    "Let the caller know the dispatch, then end the call."
                 ),
             )
         ]

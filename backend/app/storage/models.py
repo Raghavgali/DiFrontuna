@@ -6,32 +6,36 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.storage.db import Base
 
 
-class CallRow(Base):
-    __tablename__ = "calls"
+class TicketRow(Base):
+    __tablename__ = "tickets"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    caller_number: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    detected_language: Mapped[str | None] = mapped_column(String, nullable=True)
-
-    issue_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    caller_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    caller_phone: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     location: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    urgency: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    summary: Mapped[str | None] = mapped_column(String, nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    routing_target: Mapped[str | None] = mapped_column(String, nullable=True)
-    routing_reason: Mapped[str | None] = mapped_column(String, nullable=True)
-    routing_department: Mapped[str | None] = mapped_column(String, nullable=True)
+    severity: Mapped[str] = mapped_column(String, default="standard", index=True)
+    language: Mapped[str] = mapped_column(String, default="english")
+    category: Mapped[str] = mapped_column(String, default="other")
+    summary: Mapped[str] = mapped_column(String, default="")
 
-    triage_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    routing: Mapped[str] = mapped_column(String, default="")
+    status: Mapped[str] = mapped_column(String, default="new", index=True)
+    assigned_to: Mapped[str | None] = mapped_column(String, nullable=True)
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Internal state not exposed directly as a field on Ticket
     high_risk_signals: Mapped[list | None] = mapped_column(JSON, nullable=True)
-
-    transcript: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    transcript_turns: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    triage_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     triage_events: Mapped[list["TriageEventRow"]] = relationship(
-        back_populates="call", cascade="all, delete-orphan"
+        back_populates="ticket", cascade="all, delete-orphan"
     )
 
 
@@ -39,11 +43,11 @@ class TriageEventRow(Base):
     __tablename__ = "triage_events"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    call_id: Mapped[str] = mapped_column(ForeignKey("calls.id"), index=True)
+    ticket_id: Mapped[str] = mapped_column(ForeignKey("tickets.id"), index=True)
     signal: Mapped[str] = mapped_column(String)
     at: Mapped[datetime] = mapped_column(DateTime)
 
-    call: Mapped[CallRow] = relationship(back_populates="triage_events")
+    ticket: Mapped[TicketRow] = relationship(back_populates="triage_events")
 
 
-Index("ix_calls_caller_started", CallRow.caller_number, CallRow.started_at.desc())
+Index("ix_tickets_phone_created", TicketRow.caller_phone, TicketRow.created_at.desc())

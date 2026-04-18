@@ -1,80 +1,71 @@
-from app.models.schemas import (
-    IncidentFields,
-    RouteTarget,
-    RoutingDecision,
-    TriageResult,
-    Urgency,
-)
+from app.models.schemas import Severity
 
-# NYC 311 issue → responsible agency.
+# Boston 311 category → (routing label, assigned_to team).
 # Keys must match the closed vocabulary in app/vapi/prompts/system.md.
-DEPARTMENT_BY_ISSUE: dict[str, str] = {
-    # Housing (HPD)
-    "no_heat": "HPD - Housing",
-    "no_hot_water": "HPD - Housing",
-    "rodents_building": "HPD - Housing",
-    "mold": "HPD - Housing",
-    "housing_maintenance": "HPD - Housing",
-    # Sanitation (DSNY)
-    "missed_collection": "DSNY - Sanitation",
-    "dirty_street": "DSNY - Sanitation",
-    "graffiti": "DSNY - Sanitation",
-    "illegal_dumping": "DSNY - Sanitation",
-    "overflowing_litter": "DSNY - Sanitation",
-    # Transportation (DOT)
-    "pothole": "DOT - Transportation",
-    "streetlight": "DOT - Transportation",
-    "traffic_signal": "DOT - Transportation",
-    "damaged_road": "DOT - Transportation",
-    "street_sign": "DOT - Transportation",
-    "sidewalk_defect": "DOT - Transportation",
-    # Environmental Protection (DEP)
-    "water_quality": "DEP - Environmental",
-    "water_leak": "DEP - Environmental",
-    "sewer": "DEP - Environmental",
-    "air_quality": "DEP - Environmental",
-    # Buildings (DOB)
-    "construction_noise": "DOB - Buildings",
-    "illegal_construction": "DOB - Buildings",
-    "unsafe_building": "DOB - Buildings",
-    # Parks
-    "fallen_tree": "Parks - Forestry",
-    "tree_damage": "Parks - Forestry",
-    "park_maintenance": "Parks - Maintenance",
-    # Health (DOHMH)
-    "food_safety": "DOHMH - Health",
-    "rodent_public": "DOHMH - Health",
-    # NYPD non-emergency (routed via 311)
-    "noise_residential": "NYPD - Non-Emergency (311)",
-    "noise_street": "NYPD - Non-Emergency (311)",
-    "noise_vehicle": "NYPD - Non-Emergency (311)",
-    "blocked_driveway": "NYPD - Non-Emergency (311)",
-    "illegal_parking": "NYPD - Non-Emergency (311)",
-    "abandoned_vehicle": "NYPD - Non-Emergency (311)",
-    # Generic fallbacks used by older tool payloads
-    "noise_complaint": "NYPD - Non-Emergency (311)",
-    "noise": "NYPD - Non-Emergency (311)",
-    "parking": "NYPD - Non-Emergency (311)",
-    "sanitation": "DSNY - Sanitation",
+BOSTON_ROUTING: dict[str, tuple[str, str]] = {
+    # --- Emergency escalations ---
+    "medical_emergency": ("🚨 Escalate — Boston EMS", "Boston EMS"),
+    "fire": ("🚨 Escalate — Boston Fire", "Boston Fire Dept"),
+    "active_assault": ("🚨 Escalate — Boston Police", "Boston Police"),
+    "gas_leak": ("🚨 Escalate — Boston Fire", "Boston Fire Dept"),
+    "vehicle_accident_injury": ("🚨 Escalate — EMS + Boston Police", "Boston EMS"),
+    # --- Housing & Buildings (ISD - Inspectional Services) ---
+    "no_heat": ("311 — ISD Housing", "ISD Housing Division"),
+    "no_hot_water": ("311 — ISD Housing", "ISD Housing Division"),
+    "rodents_building": ("311 — ISD Housing", "ISD Housing Division"),
+    "mold": ("311 — ISD Housing", "ISD Housing Division"),
+    "housing_maintenance": ("311 — ISD Housing", "ISD Housing Division"),
+    "construction_noise": ("311 — ISD Building", "ISD Building Division"),
+    "illegal_construction": ("311 — ISD Building", "ISD Building Division"),
+    "unsafe_building": ("311 — ISD Building", "ISD Building Division"),
+    # --- Public Works (PWD) — sanitation, streets ---
+    "missed_collection": ("311 — PWD Sanitation", "PWD Sanitation"),
+    "dirty_street": ("311 — PWD Street Cleaning", "PWD Street Cleaning"),
+    "graffiti": ("311 — PWD Code Enforcement", "PWD Code Enforcement"),
+    "illegal_dumping": ("311 — PWD Sanitation", "PWD Sanitation"),
+    "overflowing_litter": ("311 — PWD Sanitation", "PWD Sanitation"),
+    "pothole": ("311 — PWD Highway", "PWD Highway Maintenance"),
+    "damaged_road": ("311 — PWD Highway", "PWD Highway Maintenance"),
+    "sidewalk_defect": ("311 — PWD Highway", "PWD Highway Maintenance"),
+    "streetlight": ("311 — PWD Lighting", "PWD Lighting"),
+    # --- Transportation (BTD) — signs, signals, parking ---
+    "traffic_signal": ("311 — BTD Signals", "BTD Signals"),
+    "street_sign": ("311 — BTD Signs", "BTD Signs"),
+    "blocked_driveway": ("311 — BTD Parking Enforcement", "BTD Parking Enforcement"),
+    "illegal_parking": ("311 — BTD Parking Enforcement", "BTD Parking Enforcement"),
+    "abandoned_vehicle": ("311 — BTD Parking Enforcement", "BTD Parking Enforcement"),
+    # --- Water & Sewer (BWSC) ---
+    "water_quality": ("311 — Boston Water & Sewer", "BWSC"),
+    "water_leak": ("311 — Boston Water & Sewer", "BWSC"),
+    "sewer": ("311 — Boston Water & Sewer", "BWSC"),
+    # --- Environment ---
+    "air_quality": ("311 — Environment Department", "Environment Dept"),
+    # --- Parks & Recreation ---
+    "fallen_tree": ("311 — Parks & Recreation", "Parks Department"),
+    "tree_damage": ("311 — Parks & Recreation", "Parks Department"),
+    "park_maintenance": ("311 — Parks & Recreation", "Parks Department"),
+    # --- Public Health (BPHC) ---
+    "food_safety": ("311 — Public Health (BPHC)", "BPHC"),
+    "rodent_public": ("311 — Public Health (BPHC)", "BPHC"),
+    # --- Noise (BPD non-emergency) ---
+    "noise_residential": ("311 — BPD Noise", "Boston Police Non-Emergency"),
+    "noise_street": ("311 — BPD Noise", "Boston Police Non-Emergency"),
+    "noise_vehicle": ("311 — BPD Noise", "Boston Police Non-Emergency"),
 }
 
+EMERGENCY_ROUTING = ("🚨 Escalate — 911 Dispatch", "Escalated to 911 Dispatch")
+DEFAULT_ROUTING = ("311 — Triage Queue", "311 Triage Queue")
 
-def decide_route(triage: TriageResult, incident: IncidentFields) -> RoutingDecision:
-    if triage.category == Urgency.emergency:
-        return RoutingDecision(
-            target=RouteTarget.emergency_operator,
-            reason="High-risk signal detected; immediate escalation.",
-        )
 
-    department = DEPARTMENT_BY_ISSUE.get(incident.issue_type.lower())
-    if department:
-        return RoutingDecision(
-            target=RouteTarget.department_queue,
-            reason=f"{incident.issue_type} maps to {department}.",
-            department=department,
-        )
+def decide_route(severity: Severity, category: str) -> tuple[str, str]:
+    """Return (routing_label, assigned_to) for a given severity + category."""
+    if severity == Severity.emergency:
+        match = BOSTON_ROUTING.get(category.lower())
+        if match and match[0].startswith("🚨"):
+            return match
+        return EMERGENCY_ROUTING
 
-    return RoutingDecision(
-        target=RouteTarget.non_emergency_311,
-        reason="Standard civic issue; routing to 311.",
-    )
+    match = BOSTON_ROUTING.get(category.lower())
+    if match:
+        return match
+    return DEFAULT_ROUTING
