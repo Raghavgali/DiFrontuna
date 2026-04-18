@@ -141,6 +141,7 @@ export function IncidentDetailSurface({
         />
       </div>
 
+      <div className="absolute left-4 right-4 top-4 z-[1000] md:left-5 md:right-5">
       <motion.header
         variants={{
           hidden: { opacity: 0, y: -14 },
@@ -149,12 +150,9 @@ export function IncidentDetailSurface({
         initial="hidden"
         animate="show"
         transition={springSnappy}
-        className={cn(
-          "absolute top-4 left-4 right-4 z-[1000]",
-          pageTopBarSurfaceClassName,
-        )}
+        className={cn(pageTopBarSurfaceClassName, "px-4 md:px-6")}
       >
-        <div className="flex items-center gap-4 min-w-0">
+        <div className="flex min-w-0 flex-1 items-center gap-3 md:gap-4">
           <div
             className={`size-10 shrink-0 rounded-full flex items-center justify-center ${
               isEmergency
@@ -178,34 +176,34 @@ export function IncidentDetailSurface({
             </div>
           </div>
           <span
-            className={`hidden md:inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${severityClasses(
+            className={`hidden lg:inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${severityClasses(
               form.severity,
             )}`}
           >
             {isEmergency && <ShieldAlert className="size-3" />}
             {SEVERITY_LABEL[form.severity]}
           </span>
-          <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+          <div className="hidden xl:flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
             <MapPin className="size-3.5 shrink-0" />
             <span className="truncate font-medium">{form.location}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="ml-2 flex shrink-0 items-center gap-2">
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-cobalt font-bold px-5"
+            className="rounded-full bg-primary px-3 md:px-5 font-bold text-primary-foreground shadow-cobalt hover:bg-primary/90"
           >
             {saving ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Saving
+                <span className="hidden sm:inline">Saving</span>
               </>
             ) : (
               <>
                 <Save className="size-4" />
-                Save
+                <span className="hidden sm:inline">Save</span>
               </>
             )}
           </Button>
@@ -219,6 +217,7 @@ export function IncidentDetailSurface({
           </button>
         </div>
       </motion.header>
+      </div>
 
       <motion.aside
         initial={{ opacity: 0, x: -12, filter: "blur(6px)" }}
