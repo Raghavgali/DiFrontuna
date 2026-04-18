@@ -18,6 +18,12 @@ build/
 .env.local
 *.local
 
+# SQLite
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
 # OS / editor
 .DS_Store
 .idea/

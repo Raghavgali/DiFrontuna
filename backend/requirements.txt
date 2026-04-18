@@ -5,6 +5,4 @@ pydantic-settings
 python-dotenv
 httpx
 websockets
-openai
-anthropic
-twilio
+sqlalchemy
