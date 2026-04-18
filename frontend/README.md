@@ -1,24 +1,27 @@
-# DiFrontuna Frontend
+# DiFrontuna — Frontend
 
-Operator dashboard: shows live + past calls, transcript, detected language, urgency, structured summary, and routing decision.
-
-## Suggested stack
-- Vite + React + TypeScript
-- TailwindCSS
-- Fetches REST from backend (`VITE_API_BASE`) and subscribes to `ws/calls` for live updates.
-
-Feel free to swap to Next.js if preferred — the `src/` layout stays similar.
+Standalone frontend for the DiFrontuna 311 operator console. No backend required — uses in-memory mock tickets and a fake AI classifier so you can demo the UI immediately.
 
 ## Run
+
 ```bash
-cd frontend
 npm install
-cp .env.example .env
 npm run dev
 ```
 
-## Layout
-- `src/pages/` — top-level views (Dashboard, CallDetail)
-- `src/components/` — reusable UI pieces
-- `src/lib/api.ts` — backend fetch/ws client
-- `src/types/call.ts` — mirrors `backend/app/models/schemas.py`
+Open http://localhost:5173
+
+## What's inside
+
+- React 19 + Vite 7 + TypeScript
+- Tailwind CSS v4 (via `@tailwindcss/vite`)
+- shadcn/ui components (Radix primitives)
+- Framer Motion animations
+- Sonner toasts
+
+## Mock data
+
+- `src/data/mock-tickets.ts` — seed tickets shown on load
+- `src/lib/fake-triage.ts` — keyword-based classifier used by the "Simulate Call" dialog (replaces the real AI edge function)
+
+To wire up a real backend later, swap `useTickets` (in `src/hooks/use-tickets.ts`) for your data layer and replace `fakeTriage()` with a real API call.
