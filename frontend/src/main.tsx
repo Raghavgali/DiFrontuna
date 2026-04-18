@@ -1,17 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { RouterProvider } from "@tanstack/react-router";
+import { getRouter } from "./router";
+import "./styles.css";
 
-import Dashboard from "./pages/Dashboard";
-import CallDetail from "./pages/CallDetail";
+const router = getRouter();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/calls/:id" element={<CallDetail />} />
-      </Routes>
-    </BrowserRouter>
-  </React.StrictMode>
+  <RouterProvider router={router} />,
 );
