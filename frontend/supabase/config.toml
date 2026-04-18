@@ -1,4 +1,0 @@
-project_id = "opzlyqozyxhojougqprj"
-
-[functions.triage-call]
-verify_jwt = false

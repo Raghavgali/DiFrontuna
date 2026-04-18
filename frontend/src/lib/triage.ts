@@ -1,10 +1,34 @@
-import type { Database } from "@/integrations/supabase/types";
+export type Severity = "emergency" | "urgent" | "standard";
+export type Status = "new" | "in_progress" | "resolved";
+export type Language = "english" | "spanish" | "mandarin" | "hindi";
 
-export type Ticket = Database["public"]["Tables"]["tickets"]["Row"];
-export type TicketInsert = Database["public"]["Tables"]["tickets"]["Insert"];
-export type Severity = Database["public"]["Enums"]["ticket_severity"];
-export type Status = Database["public"]["Enums"]["ticket_status"];
-export type Language = Database["public"]["Enums"]["ticket_language"];
+export interface Ticket {
+  id: string;
+  created_at: string;
+  ended_at?: string | null;
+  caller_name: string;
+  caller_phone: string | null;
+  location: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  severity: Severity;
+  language: Language;
+  category: string;
+  summary: string;
+  transcript: string;
+  routing: string;
+  status: Status;
+  assigned_to: string | null;
+  description: string | null;
+}
+
+export type TicketInsert = Partial<Omit<Ticket, "id" | "created_at">> & {
+  caller_name: string;
+  category: string;
+  routing: string;
+  summary: string;
+  transcript: string;
+};
 
 export const SEVERITY_LABEL: Record<Severity, string> = {
   emergency: "Escalated to 911",
@@ -28,6 +52,7 @@ export const LANGUAGE_META: Record<Language, { label: string; flag: string }> = 
   english: { label: "English", flag: "🇺🇸" },
   spanish: { label: "Spanish", flag: "🇪🇸" },
   mandarin: { label: "Mandarin", flag: "🇨🇳" },
+  hindi: { label: "Hindi", flag: "🇮🇳" },
 };
 
 // 311-style city service dispatch options (with one 911 escalation path)
@@ -113,24 +138,24 @@ export const PRESET_SCENARIOS: { id: string; label: string; transcript: string }
     id: "civic",
     label: "📢 Noise complaint (English)",
     transcript:
-      "Hi, there is loud construction happening outside my building at 650 Divisadero Street and it's already past midnight. This has been going on for two hours and I can't sleep. My name is Aisha Brown.",
+      "Hi, there is loud construction happening outside my building at 650 Boylston Street and it's already past midnight. This has been going on for two hours and I can't sleep. My name is Aisha Brown.",
   },
   {
     id: "spanish",
     label: "🇪🇸 Water main break (Spanish)",
     transcript:
-      "Hola, hay agua saliendo a chorros en la calle, está inundando todo el cruce de la calle 15 con Valencia. Los carros no pueden pasar. Me llamo Carlos Rivera, mi teléfono es 415-555-0193.",
+      "Hola, hay agua saliendo a chorros en la calle, está inundando todo el cruce de la calle 15 con Valencia. Los carros no pueden pasar. Me llamo Carlos Rivera, mi teléfono es 617-555-0193.",
   },
   {
     id: "mandarin",
     label: "🇨🇳 Pothole report (Mandarin)",
     transcript:
-      "你好，我想报告一个很大的坑洞，在 Geary Boulevard 和 25th Avenue 的交叉口，已经有好几辆车被损坏了。我叫陈伟。",
+      "你好，我想报告一个很大的坑洞，在 Commonwealth Avenue 和 Massachusetts Avenue 的交叉口，已经有好几辆车被损坏了。我叫陈伟。",
   },
   {
     id: "misroute",
     label: "🚨 Caller dialed 311 by mistake — real emergency!",
     transcript:
-      "I—I think I called the wrong number, but please help! My father just collapsed in the kitchen and he's not breathing. I'm at 482 Mission Street, apartment 3C. I'm Sarah Mitchell, 415-555-0188.",
+      "I—I think I called the wrong number, but please help! My father just collapsed in the kitchen and he's not breathing. I'm at 482 Commonwealth Avenue, apartment 3C. I'm Sarah Mitchell, 617-555-0188.",
   },
 ];

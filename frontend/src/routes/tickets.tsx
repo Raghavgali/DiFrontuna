@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { listTickets } from "@/lib/api";
 import { StatsStrip } from "@/components/stats-strip";
 import { TicketsTable } from "@/components/tickets-table";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ import {
   PageTopBarHeading,
   PageTopBarIcon,
 } from "@/components/page-top-bar";
+
+const POLL_INTERVAL_MS = 3000;
 
 export const Route = createFileRoute("/tickets")({
   head: () => ({
@@ -41,33 +43,31 @@ function TicketsPage() {
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
-  
-
-  const loadTickets = async () => {
-    const { data, error } = await supabase
-      .from("tickets")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast.error(`Could not load tickets: ${error.message}`);
-      return;
-    }
-    setTickets(data ?? []);
-    setLoading(false);
-  };
 
   useEffect(() => {
-    loadTickets();
-    const channel = supabase
-      .channel("tickets-realtime-list")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "tickets" },
-        () => loadTickets(),
-      )
-      .subscribe();
+    let cancelled = false;
+
+    const loadTickets = async () => {
+      try {
+        const data = await listTickets();
+        if (!cancelled) {
+          setTickets(data);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(
+            `Could not load tickets: ${err instanceof Error ? err.message : "unknown error"}`,
+          );
+        }
+      }
+    };
+
+    void loadTickets();
+    const interval = window.setInterval(loadTickets, POLL_INTERVAL_MS);
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      window.clearInterval(interval);
     };
   }, []);
 

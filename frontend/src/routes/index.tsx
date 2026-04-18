@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { listTickets, patchTicket } from "@/lib/api";
 import { BostonMap } from "@/components/boston-map";
 import { IncidentDetailPanel } from "@/components/incident-detail-panel";
 import { MOCK_OPERATOR } from "@/lib/operator";
@@ -13,6 +13,8 @@ import {
   PageTopBarHeading,
   PageTopBarIcon,
 } from "@/components/page-top-bar";
+
+const POLL_INTERVAL_MS = 3000;
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,42 +36,45 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const loadTickets = async () => {
-    const { data, error } = await supabase
-      .from("tickets")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast.error(`Could not load tickets: ${error.message}`);
-      return;
-    }
-    setTickets(data ?? []);
-    setLoading(false);
-  };
-
   useEffect(() => {
-    loadTickets();
-    const channel = supabase
-      .channel("tickets-realtime-map")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "tickets" },
-        () => loadTickets(),
-      )
-      .subscribe();
+    let cancelled = false;
+
+    const loadTickets = async () => {
+      try {
+        const data = await listTickets();
+        if (!cancelled) {
+          setTickets(data);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(
+            `Could not load tickets: ${err instanceof Error ? err.message : "unknown error"}`,
+          );
+        }
+      }
+    };
+
+    void loadTickets();
+    const interval = window.setInterval(loadTickets, POLL_INTERVAL_MS);
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      window.clearInterval(interval);
     };
   }, []);
 
   const selected = tickets.find((t) => t.id === selectedId) ?? null;
 
-  const patchTicket = async (id: string, patch: Partial<Ticket>) => {
+  const handlePatch = async (id: string, patch: Partial<Ticket>) => {
     setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-    const { error } = await supabase.from("tickets").update(patch).eq("id", id);
-    if (error) {
-      toast.error(`Update failed: ${error.message}`);
-      loadTickets();
+    try {
+      await patchTicket(id, patch);
+    } catch (err) {
+      toast.error(
+        `Update failed: ${err instanceof Error ? err.message : "unknown error"}`,
+      );
+      const fresh = await listTickets().catch(() => null);
+      if (fresh) setTickets(fresh);
     }
   };
 
@@ -125,7 +130,7 @@ function DashboardPage() {
             <IncidentDetailPanel
               ticket={selected}
               onClose={() => setSelectedId(null)}
-              onPatch={patchTicket}
+              onPatch={handlePatch}
               onOpenFull={() => {
                 if (selected) {
                   void navigate({

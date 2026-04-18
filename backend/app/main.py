@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import calls, vapi, ws
+from app.routes import analytics, tickets, triage, vapi
 from app.storage.db import init_db
 
 
@@ -23,8 +23,9 @@ app.add_middleware(
 )
 
 app.include_router(vapi.router)
-app.include_router(calls.router)
-app.include_router(ws.router)
+app.include_router(tickets.router)
+app.include_router(analytics.router)
+app.include_router(triage.router)
 
 
 @app.get("/health")

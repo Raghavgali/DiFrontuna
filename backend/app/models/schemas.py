@@ -1,39 +1,26 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
-class Urgency(str, Enum):
+class Severity(str, Enum):
     emergency = "emergency"
-    urgent_non_emergency = "urgent_non_emergency"
+    urgent = "urgent"
     standard = "standard"
 
 
-class RouteTarget(str, Enum):
-    emergency_operator = "emergency_operator"
-    non_emergency_311 = "non_emergency_311"
-    department_queue = "department_queue"
+class Status(str, Enum):
+    new = "new"
+    in_progress = "in_progress"
+    resolved = "resolved"
 
 
-class TriageResult(BaseModel):
-    category: Urgency
-    confidence: float = Field(ge=0, le=1)
-    high_risk_signals: list[str] = []
-
-
-class IncidentFields(BaseModel):
-    issue_type: str
-    location: str | None = None
-    urgency: Urgency
-    summary: str
-    detected_language: str
-
-
-class RoutingDecision(BaseModel):
-    target: RouteTarget
-    reason: str
-    department: str | None = None
+class Language(str, Enum):
+    english = "english"
+    spanish = "spanish"
+    mandarin = "mandarin"
+    hindi = "hindi"
 
 
 class TranscriptTurn(BaseModel):
@@ -42,13 +29,40 @@ class TranscriptTurn(BaseModel):
     at: datetime
 
 
-class Call(BaseModel):
+class Ticket(BaseModel):
     id: str
-    started_at: datetime
+    created_at: datetime
     ended_at: datetime | None = None
-    caller_number: str | None = None
-    detected_language: str | None = None
-    transcript: list[TranscriptTurn] = []
-    incident: IncidentFields | None = None
-    triage: TriageResult | None = None
-    routing: RoutingDecision | None = None
+
+    caller_name: str = ""
+    caller_phone: str | None = None
+    location: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
+    severity: Severity = Severity.standard
+    language: Language = Language.english
+    category: str = "other"
+    summary: str = ""
+    transcript: str = ""
+
+    routing: str = ""
+    status: Status = Status.new
+    assigned_to: str | None = None
+    description: str | None = None
+
+
+class TicketPatch(BaseModel):
+    caller_name: str | None = None
+    caller_phone: str | None = None
+    location: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    severity: Severity | None = None
+    language: Language | None = None
+    category: str | None = None
+    summary: str | None = None
+    routing: str | None = None
+    status: Status | None = None
+    assigned_to: str | None = None
+    description: str | None = None
