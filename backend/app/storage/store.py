@@ -1,6 +1,21 @@
+from datetime import datetime, timezone
+
+from sqlalchemy import func
+
 from app.models.schemas import Language, Severity, Status, Ticket, TranscriptTurn
 from app.storage.db import SessionLocal
 from app.storage.models import TicketRow
+
+
+def _as_utc(dt: datetime | None) -> datetime | None:
+    # SQLite stores naive datetimes; we always write UTC, so reattach tzinfo
+    # here so the JSON response carries a proper `+00:00` suffix and the
+    # browser doesn't reinterpret it as local time.
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def _turns_to_string(turns: list[dict] | None) -> str:
@@ -18,8 +33,9 @@ def _turns_to_string(turns: list[dict] | None) -> str:
 def _row_to_ticket(row: TicketRow) -> Ticket:
     return Ticket(
         id=row.id,
-        created_at=row.created_at,
-        ended_at=row.ended_at,
+        number=row.number or 0,
+        created_at=_as_utc(row.created_at),
+        ended_at=_as_utc(row.ended_at),
         caller_name=row.caller_name or "",
         caller_phone=row.caller_phone,
         location=row.location,
@@ -60,9 +76,13 @@ class TicketStore:
         with SessionLocal() as db:
             row = db.get(TicketRow, ticket.id)
             if row is None:
-                row = TicketRow(id=ticket.id)
+                next_num = (
+                    db.query(func.coalesce(func.max(TicketRow.number), 0)).scalar() or 0
+                ) + 1
+                row = TicketRow(id=ticket.id, number=next_num)
                 _apply_ticket_to_row(row, ticket)
                 db.add(row)
+                ticket.number = next_num
             else:
                 _apply_ticket_to_row(row, ticket)
             db.commit()
@@ -120,6 +140,16 @@ class TicketStore:
             )
             return [_row_to_ticket(r) for r in rows], total
 
+    def replace_transcript_turns(
+        self, ticket_id: str, turns: list[TranscriptTurn]
+    ) -> None:
+        with SessionLocal() as db:
+            row = db.get(TicketRow, ticket_id)
+            if row is None:
+                return
+            row.transcript_turns = [t.model_dump(mode="json") for t in turns]
+            db.commit()
+
     def append_transcript_turn(self, ticket_id: str, turn: TranscriptTurn) -> None:
         with SessionLocal() as db:
             row = db.get(TicketRow, ticket_id)
@@ -127,6 +157,35 @@ class TicketStore:
                 return
             turns = list(row.transcript_turns or [])
             turns.append(turn.model_dump(mode="json"))
+            row.transcript_turns = turns
+            db.commit()
+
+    def upsert_transcript_turn(
+        self, ticket_id: str, turn: TranscriptTurn, *, is_final: bool
+    ) -> None:
+        """Append on final; on partial, replace the last turn if it's the same speaker."""
+        with SessionLocal() as db:
+            row = db.get(TicketRow, ticket_id)
+            if row is None:
+                return
+            turns = list(row.transcript_turns or [])
+            payload = turn.model_dump(mode="json")
+            if is_final:
+                # Replace trailing partial from same speaker (if any) with the final.
+                if turns and turns[-1].get("speaker") == payload["speaker"] and turns[-1].get(
+                    "partial"
+                ):
+                    turns[-1] = payload
+                else:
+                    turns.append(payload)
+            else:
+                payload["partial"] = True
+                if turns and turns[-1].get("speaker") == payload["speaker"] and turns[-1].get(
+                    "partial"
+                ):
+                    turns[-1] = payload
+                else:
+                    turns.append(payload)
             row.transcript_turns = turns
             db.commit()
 

@@ -27,7 +27,7 @@ export function TicketDetailDialog({
 }: TicketDetailDialogProps) {
   if (!ticket) return null;
 
-  const idShort = ticket.id.slice(0, 7).toUpperCase();
+  const idShort = ticket.number ? String(ticket.number) : ticket.id.slice(0, 7).toUpperCase();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

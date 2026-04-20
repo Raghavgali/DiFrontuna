@@ -26,7 +26,7 @@ const POLL_INTERVAL_MS = 3000;
 export const Route = createFileRoute("/tickets")({
   head: () => ({
     meta: [
-      { title: "Tickets — DiFrontuna" },
+      { title: "Tickets — Responza" },
       {
         name: "description",
         content: "Full queue of all triaged 311 calls with filters and severity routing.",
@@ -154,6 +154,8 @@ function TicketsPage() {
                   <SelectItem value="new">New</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="call_interrupted">Call Interrupted</SelectItem>
+                  <SelectItem value="transferred">Transferred to 911</SelectItem>
                 </SelectContent>
               </Select>
             </div>

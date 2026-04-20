@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, String
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.storage.db import Base
@@ -10,6 +10,7 @@ class TicketRow(Base):
     __tablename__ = "tickets"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    number: Mapped[int] = mapped_column(Integer, unique=True, index=True, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

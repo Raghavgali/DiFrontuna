@@ -1,4 +1,4 @@
-# DiFrontuna Backend — Architecture
+# Responza Backend — Architecture
 
 A multilingual AI voice triage layer for Boston city service calls.
 Vapi handles the voice/telephony/LLM stack; the backend is a thin webhook

@@ -1,6 +1,6 @@
-# DiFrontuna — Frontend
+# Responza — Frontend
 
-Standalone frontend for the DiFrontuna 311 operator console. No backend required — uses in-memory mock tickets and a fake AI classifier so you can demo the UI immediately.
+Standalone frontend for the Responza 311 operator console. No backend required — uses in-memory mock tickets and a fake AI classifier so you can demo the UI immediately.
 
 ## Run
 

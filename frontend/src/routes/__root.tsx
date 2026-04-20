@@ -39,17 +39,17 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "DiFrontuna — Operator Dashboard" },
+      { title: "Responza — Operator Dashboard" },
       {
         name: "description",
         content:
-          "DiFrontuna — multilingual AI voice triage for emergency and civic call operators.",
+          "Responza — multilingual AI voice triage for emergency and civic call operators.",
       },
-      { property: "og:title", content: "DiFrontuna — Operator Dashboard" },
+      { property: "og:title", content: "Responza — Operator Dashboard" },
       {
         property: "og:description",
         content:
-          "DiFrontuna — multilingual AI voice triage for emergency and civic call operators.",
+          "Responza — multilingual AI voice triage for emergency and civic call operators.",
       },
       { property: "og:type", content: "website" },
     ],

@@ -74,7 +74,7 @@ export function TicketsTable({ tickets, onSelect }: TicketsTableProps) {
                 )}
 
                 <div className="font-mono text-[11px] text-muted-foreground font-semibold">
-                  #{t.id.slice(0, 6).toUpperCase()}
+                  #{t.number ?? t.id.slice(0, 6).toUpperCase()}
                 </div>
 
                 <div>
@@ -116,7 +116,7 @@ export function TicketsTable({ tickets, onSelect }: TicketsTableProps) {
                 </div>
 
                 <div className="text-right text-[11px] text-muted-foreground whitespace-nowrap tabular-nums font-mono">
-                  {timeAgo(t.created_at)}
+                  {timeAgo(t.ended_at ?? t.created_at)}
                 </div>
 
                 <div className="hidden sm:flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">

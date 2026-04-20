@@ -1,4 +1,4 @@
-# DiFrontuna Backend
+# Responza Backend
 
 FastAPI service that answers phone calls, runs multilingual voice triage, and exposes dashboard endpoints.
 

@@ -1,9 +1,15 @@
 export type Severity = "emergency" | "urgent" | "standard";
-export type Status = "new" | "in_progress" | "resolved";
+export type Status =
+  | "new"
+  | "in_progress"
+  | "resolved"
+  | "call_interrupted"
+  | "transferred";
 export type Language = "english" | "spanish" | "mandarin" | "hindi";
 
 export interface Ticket {
   id: string;
+  number?: number;
   created_at: string;
   ended_at?: string | null;
   caller_name: string;
@@ -46,56 +52,112 @@ export const STATUS_LABEL: Record<Status, string> = {
   new: "New",
   in_progress: "In Progress",
   resolved: "Resolved",
+  call_interrupted: "Call Interrupted",
+  transferred: "Transferred to 911",
 };
 
+// `flag` is intentionally a short language code rather than a country flag —
+// the caller's spoken language doesn't imply where they're physically located
+// (a Hindi speaker reporting a Boston incident shouldn't show 🇮🇳).
 export const LANGUAGE_META: Record<Language, { label: string; flag: string }> = {
-  english: { label: "English", flag: "🇺🇸" },
-  spanish: { label: "Spanish", flag: "🇪🇸" },
-  mandarin: { label: "Mandarin", flag: "🇨🇳" },
-  hindi: { label: "Hindi", flag: "🇮🇳" },
+  english: { label: "English", flag: "EN" },
+  spanish: { label: "Spanish", flag: "ES" },
+  mandarin: { label: "Mandarin", flag: "中" },
+  hindi: { label: "Hindi", flag: "हि" },
 };
 
-// 311-style city service dispatch options (with one 911 escalation path)
+// Kept in sync with backend/app/services/router.py (BOSTON_ROUTING values).
 export const ASSIGNEES = [
   "311 Triage Queue",
-  "Noise Compliance Team",
-  "DPW Crew 3",
-  "Sanitation Route 12",
-  "Animal Control",
-  "Building & Safety",
+  "ISD Housing Division",
+  "ISD Building Division",
+  "PWD Sanitation",
+  "PWD Street Cleaning",
+  "PWD Code Enforcement",
+  "PWD Highway Maintenance",
+  "PWD Lighting",
+  "BTD Signals",
+  "BTD Signs",
+  "BTD Parking Enforcement",
+  "BWSC",
+  "Environment Dept",
   "Parks Department",
-  "Transportation Dept.",
+  "BPHC",
+  "Boston Police Non-Emergency",
+  "Boston EMS",
+  "Boston Fire Dept",
+  "Boston Police",
   "Escalated to 911 Dispatch",
   "Unassigned",
 ];
 
 export const ROUTING_OPTIONS = [
-  "311 — General City Services",
-  "311 — Sanitation",
-  "311 — Noise & Nuisance",
-  "DPW — Emergency Maintenance",
-  "DPW — Streets & Potholes",
-  "Animal Control",
-  "Building & Safety",
-  "Parks Department",
-  "Transportation Dept.",
-  "🚨 ESCALATE — 911 EMS Dispatch",
-  "🚨 ESCALATE — 911 Fire Department",
-  "🚨 ESCALATE — 911 Police Dispatch",
+  "311 — Triage Queue",
+  "311 — ISD Housing",
+  "311 — ISD Building",
+  "311 — PWD Sanitation",
+  "311 — PWD Street Cleaning",
+  "311 — PWD Code Enforcement",
+  "311 — PWD Highway",
+  "311 — PWD Lighting",
+  "311 — BTD Signals",
+  "311 — BTD Signs",
+  "311 — BTD Parking Enforcement",
+  "311 — Boston Water & Sewer",
+  "311 — Environment Department",
+  "311 — Parks & Recreation",
+  "311 — Public Health (BPHC)",
+  "311 — BPD Noise",
+  "🚨 Escalate — Boston EMS",
+  "🚨 Escalate — Boston Fire",
+  "🚨 Escalate — Boston Police",
+  "🚨 Escalate — EMS + Boston Police",
+  "🚨 Escalate — 911 Dispatch",
 ];
 
+// Kept in sync with the closed category vocabulary in
+// backend/app/vapi/prompts/system.md (the values the Vapi agent emits).
 export const CATEGORIES = [
-  "Noise Complaint",
-  "Sanitation",
-  "Infrastructure",
-  "Traffic",
-  "Animal Control",
-  "Building Issue",
-  "Parks & Recreation",
-  "Medical (Escalated)",
-  "Fire (Escalated)",
-  "Crime (Escalated)",
-  "Other",
+  "medical_emergency",
+  "fire",
+  "active_assault",
+  "gas_leak",
+  "vehicle_accident_injury",
+  "no_heat",
+  "no_hot_water",
+  "rodents_building",
+  "mold",
+  "housing_maintenance",
+  "construction_noise",
+  "illegal_construction",
+  "unsafe_building",
+  "missed_collection",
+  "dirty_street",
+  "graffiti",
+  "illegal_dumping",
+  "overflowing_litter",
+  "pothole",
+  "damaged_road",
+  "sidewalk_defect",
+  "streetlight",
+  "traffic_signal",
+  "street_sign",
+  "blocked_driveway",
+  "illegal_parking",
+  "abandoned_vehicle",
+  "water_quality",
+  "water_leak",
+  "sewer",
+  "air_quality",
+  "fallen_tree",
+  "tree_damage",
+  "park_maintenance",
+  "food_safety",
+  "rodent_public",
+  "noise_residential",
+  "noise_street",
+  "noise_vehicle",
+  "other",
 ];
 
 export function severityClasses(s: Severity) {
@@ -117,18 +179,36 @@ export function statusClasses(s: Status) {
       return "bg-urgent/15 text-urgent border-urgent/30";
     case "resolved":
       return "bg-success/15 text-success border-success/30";
+    case "call_interrupted":
+      return "bg-muted text-muted-foreground border-border";
+    case "transferred":
+      return "bg-emergency/15 text-emergency border-emergency/30";
   }
 }
 
-export function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+export function timeAgo(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return "just now";
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
+  if (h < 6) return `${h}h ago`;
+  // Older than ~6h: show wall-clock time (and date if not today).
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  if (sameDay) return time;
+  const dayDiff = Math.floor(h / 24);
+  if (dayDiff === 1) return `Yesterday ${time}`;
+  return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${time}`;
 }
 
 // Demo presets — all start as 311 calls, but the "emergency" one slips a real

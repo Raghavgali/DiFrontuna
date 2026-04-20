@@ -71,10 +71,10 @@ export function IncidentDetailPanel({
                 </div>
                 <div className="min-w-0">
                   <div className="text-[10px] font-mono font-bold tracking-widest text-muted-foreground uppercase">
-                    Incident · {timeAgo(ticket.created_at)}
+                    Incident · {timeAgo(ticket.ended_at ?? ticket.created_at)}
                   </div>
                   <div className="text-base font-extrabold tracking-tight truncate">
-                    #{ticket.id.slice(0, 8).toUpperCase()}
+                    #{ticket.number ?? ticket.id.slice(0, 8).toUpperCase()}
                   </div>
                 </div>
               </div>
@@ -206,7 +206,15 @@ export function IncidentDetailPanel({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {(["new", "in_progress", "resolved"] as Status[]).map((s) => (
+                      {(
+                        [
+                          "new",
+                          "in_progress",
+                          "resolved",
+                          "call_interrupted",
+                          "transferred",
+                        ] as Status[]
+                      ).map((s) => (
                         <SelectItem key={s} value={s}>
                           {STATUS_LABEL[s]}
                         </SelectItem>
@@ -228,7 +236,7 @@ export function IncidentDetailPanel({
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="size-3" />
-                  <span className="font-mono">{timeAgo(ticket.created_at)}</span>
+                  <span className="font-mono">{timeAgo(ticket.ended_at ?? ticket.created_at)}</span>
                 </div>
               </div>
             </div>

@@ -13,7 +13,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="DiFrontuna Triage API", lifespan=lifespan)
+app = FastAPI(title="Responza Triage API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
