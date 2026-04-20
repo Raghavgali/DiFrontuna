@@ -35,7 +35,7 @@ function makePinIcon(
   const dotSize = selected ? 18 : 14;
 
   return L.divIcon({
-    className: "difrontuna-pin",
+    className: "responza-pin",
     iconSize: [ringSize, ringSize],
     iconAnchor: [ringSize / 2, ringSize / 2],
       html: `

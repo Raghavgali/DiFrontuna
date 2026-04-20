@@ -4,7 +4,7 @@ import { getTicket } from "@/lib/api";
 import { IncidentDetailSurface } from "@/components/incident-detail-surface";
 import type { Ticket } from "@/lib/triage";
 
-const DETAIL_POLL_INTERVAL_MS = 2000;
+const DETAIL_POLL_INTERVAL_MS = 1000;
 
 export const Route = createFileRoute("/incident/$ticketId")({
   loader: async ({ params }) => {

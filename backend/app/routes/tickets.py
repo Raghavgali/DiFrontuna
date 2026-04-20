@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 
 from app.models.schemas import Language, Severity, Status, Ticket, TicketPatch
+from app.services.geocode import geocode_boston
 from app.storage.store import store
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
@@ -37,6 +38,17 @@ def get_ticket(ticket_id: str) -> Ticket:
 @router.patch("/{ticket_id}")
 def patch_ticket(ticket_id: str, patch: TicketPatch) -> Ticket:
     fields = patch.model_dump(exclude_unset=True)
+
+    # If the operator edited the location and didn't also supply
+    # lat/lon, re-geocode so the map pin moves to the corrected address.
+    new_loc = fields.get("location")
+    if new_loc and "latitude" not in fields and "longitude" not in fields:
+        existing = store.get(ticket_id)
+        if existing is None or (existing.location or "") != new_loc:
+            coords = geocode_boston(new_loc)
+            if coords:
+                fields["latitude"], fields["longitude"] = coords
+
     updated = store.patch(ticket_id, fields)
     if updated is None:
         raise HTTPException(status_code=404, detail="ticket not found")

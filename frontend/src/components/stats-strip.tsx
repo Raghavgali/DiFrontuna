@@ -3,7 +3,9 @@ import { ShieldAlert, PhoneIncoming, Timer, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function StatsStrip({ tickets }: { tickets: Ticket[] }) {
-  const open = tickets.filter((t) => t.status !== "resolved").length;
+  const open = tickets.filter(
+    (t) => !["resolved", "call_interrupted", "transferred"].includes(t.status),
+  ).length;
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const escalatedToday = tickets.filter(

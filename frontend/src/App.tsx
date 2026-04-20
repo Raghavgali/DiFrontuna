@@ -61,7 +61,7 @@ export default function App() {
                   Welcome back, {MOCK_OPERATOR.name.split(" ").slice(-1)[0]} · operator console
                 </>
               }
-              title="DiFrontuna"
+              title="Responza"
             />
           </div>
           <div className="flex shrink-0 items-center gap-3">

@@ -14,6 +14,8 @@ class Status(str, Enum):
     new = "new"
     in_progress = "in_progress"
     resolved = "resolved"
+    call_interrupted = "call_interrupted"
+    transferred = "transferred"
 
 
 class Language(str, Enum):
@@ -31,6 +33,7 @@ class TranscriptTurn(BaseModel):
 
 class Ticket(BaseModel):
     id: str
+    number: int = 0
     created_at: datetime
     ended_at: datetime | None = None
 

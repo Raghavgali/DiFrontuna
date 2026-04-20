@@ -67,13 +67,28 @@ export function IncidentDetailSurface({
   const [form, setForm] = useState<Ticket>(ticket);
   const [saving, setSaving] = useState(false);
   const [showEnglish, setShowEnglish] = useState(true);
+  // Once the operator touches any field, polling should stop clobbering
+  // their unsaved edits. We still merge in server-only fields (transcript,
+  // timestamps, ai metadata) so the transcript can keep streaming in.
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    setForm(ticket);
-  }, [ticket]);
+    setForm((prev) =>
+      dirty
+        ? {
+            ...prev,
+            transcript: ticket.transcript,
+            ended_at: ticket.ended_at,
+            number: ticket.number,
+            created_at: ticket.created_at,
+          }
+        : ticket,
+    );
+  }, [ticket, dirty]);
 
   const update = <K extends keyof Ticket>(key: K, value: Ticket[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setDirty(true);
   };
 
   const handleSave = async () => {
@@ -82,6 +97,7 @@ export function IncidentDetailSurface({
     if (onLocalSave) {
       onLocalSave(form);
       setSaving(false);
+      setDirty(false);
       toast.success("Ticket updated");
       onSaved();
       onClose();
@@ -102,6 +118,7 @@ export function IncidentDetailSurface({
         summary: form.summary,
       });
       toast.success("Ticket updated");
+      setDirty(false);
       onSaved();
       onClose();
     } catch (err) {
@@ -115,7 +132,7 @@ export function IncidentDetailSurface({
 
   const lang = LANGUAGE_META[form.language];
   const isEmergency = form.severity === "emergency";
-  const idShort = form.id.slice(0, 7).toUpperCase();
+  const idShort = form.number ? String(form.number) : form.id.slice(0, 7).toUpperCase();
 
   return (
     <motion.div
@@ -167,7 +184,7 @@ export function IncidentDetailSurface({
               <span>·</span>
               <span className="inline-flex items-center gap-1">
                 <Clock className="size-3" />
-                {timeAgo(form.created_at)}
+                {timeAgo(form.ended_at ?? form.created_at)}
               </span>
             </div>
             <div className="text-lg font-extrabold tracking-tight truncate font-mono leading-tight">
@@ -235,7 +252,8 @@ export function IncidentDetailSurface({
                 <Input
                   value={form.caller_name}
                   onChange={(e) => update("caller_name", e.target.value)}
-                  className="border-0 bg-transparent px-0 h-auto py-0 text-base font-bold focus-visible:ring-0 shadow-none"
+                  placeholder="Unknown caller"
+                  className="border-0 bg-transparent px-0 h-auto py-0 text-base font-bold focus-visible:ring-0 shadow-none placeholder:font-bold placeholder:text-muted-foreground"
                 />
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono mt-0.5">
                   <Phone className="size-3" />
@@ -314,7 +332,7 @@ export function IncidentDetailSurface({
                         {r}
                       </SelectItem>
                     ))}
-                    {!ROUTING_OPTIONS.includes(form.routing) && (
+                    {form.routing && !ROUTING_OPTIONS.includes(form.routing) && (
                       <SelectItem value={form.routing}>{form.routing}</SelectItem>
                     )}
                   </SelectContent>
@@ -351,7 +369,15 @@ export function IncidentDetailSurface({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {(["new", "in_progress", "resolved"] as Status[]).map((s) => (
+                      {(
+                        [
+                          "new",
+                          "in_progress",
+                          "resolved",
+                          "call_interrupted",
+                          "transferred",
+                        ] as Status[]
+                      ).map((s) => (
                         <SelectItem key={s} value={s}>
                           {STATUS_LABEL[s]}
                         </SelectItem>
@@ -393,7 +419,7 @@ export function IncidentDetailSurface({
                           {c}
                         </SelectItem>
                       ))}
-                      {!CATEGORIES.includes(form.category) && (
+                      {form.category && !CATEGORIES.includes(form.category) && (
                         <SelectItem value={form.category}>{form.category}</SelectItem>
                       )}
                     </SelectContent>
@@ -545,7 +571,7 @@ function TranscriptionPanel({
           </div>
           <div className="min-w-0">
             <div className="text-sm font-extrabold tracking-tight truncate">
-              Live Transcription
+              Transcript
             </div>
             <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
               <span>{flag}</span>

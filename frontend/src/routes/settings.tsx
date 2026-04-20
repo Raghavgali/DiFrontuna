@@ -16,7 +16,7 @@ import {
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings — DiFrontuna" },
+      { title: "Settings — Responza" },
       { name: "description", content: "Operator preferences and dispatch settings." },
     ],
   }),
